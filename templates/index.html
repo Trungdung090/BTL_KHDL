@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dự Báo Giá Cổ Phiếu - AI Predictor</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .hover-scale {
+            transition: transform 0.3s ease;
+        }
+        .hover-scale:hover {
+            transform: scale(1.05);
+        }
+        .fade-out {
+            animation: fadeOut 0.5s ease-out forwards;
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; transform: translateY(0); }
+            to { opacity: 0; transform: translateY(-20px); }
+        }
+
+        .hover-time-display {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: rgba(30, 41, 59, 0.9);
+        padding: 10px 15px;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: bold;
+        color: white;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.3s;
+        z-index: 100;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .hover-value-display {
+            position: absolute;
+            top: 60px;
+            right: 20px;
+            background: rgba(30, 41, 59, 0.9);
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            color: white;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 100;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="min-h-screen gradient-bg text-white">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-12">
+            <h1 class="text-5xl font-bold mb-4 bg-gradient-to-r from-yellow-400 to-pink-400 bg-clip-text text-transparent">
+                <i class="fas fa-chart-line mr-4"></i>Dự Báo Giá Cổ Phiếu
+            </h1>
+            <p class="text-xl text-gray-200">Phân tích và dự báo giá cổ phiếu bằng Machine Learning</p>
+        </div>
+
+        <!-- Upload Section -->
+        <div class="glass-effect rounded-2xl p-8 mb-8 fade-in">
+            <div class="flex items-center mb-6">
+                <i class="fas fa-upload text-2xl mr-3 text-blue-400"></i>
+                <h2 class="text-2xl font-semibold">Tải Lên Dữ Liệu CSV</h2>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-4 items-center">
+                <div class="flex-1">
+                    <input type="file" id="fileInput" accept=".csv"
+                           class="block w-full text-sm text-gray-300 file:mr-4 file:py-3 file:px-6 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 file:cursor-pointer cursor-pointer">
+                </div>
+                <button id="uploadBtn"
+                        class="px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full hover:from-blue-700 hover:to-purple-700 transition-all duration-300 hover-scale disabled:opacity-50">
+                    <i class="fas fa-cloud-upload-alt mr-2"></i>Tải Lên
+                </button>
+            </div>
+
+            <!-- Upload Status -->
+            <div id="uploadStatus" class="mt-4 hidden"></div>
+        </div>
+
+        <!-- Controls Section -->
+        <div id="controlsSection" class="glass-effect rounded-2xl p-8 mb-8 hidden fade-in">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                    <label class="block text-sm font-medium mb-2">
+                        <i class="fas fa-robot mr-2"></i>Mô Hình Dự Báo
+                    </label>
+                    <select id="modelSelect" class="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500">
+                        <option value="random_forest">Random Forest</option>
+                        <option value="linear_regression">Linear Regression</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-2">
+                        <i class="fas fa-calendar-alt mr-2"></i>Số Ngày Dự Báo
+                    </label>
+                    <input type="number" id="daysInput" value="30" min="1" max="90"
+                           class="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div class="flex items-end">
+                    <button id="predictBtn"
+                            class="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-lg hover:from-green-700 hover:to-teal-700 transition-all duration-300 hover-scale disabled:opacity-50">
+                        <i class="fas fa-magic mr-2"></i>Tạo Dự Báo
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics Section -->
+        <div id="statsSection" class="glass-effect rounded-2xl p-8 mb-8 hidden fade-in">
+            <h3 class="text-2xl font-semibold mb-6 flex items-center">
+                <i class="fas fa-chart-bar mr-3 text-yellow-400"></i>Thống Kê Dữ Liệu
+            </h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-6" id="statsGrid">
+                <!-- Stats will be populated here -->
+            </div>
+        </div>
+
+        <!-- Chart Section -->
+        <div id="chartSection" class="glass-effect rounded-2xl p-8 mb-8 hidden fade-in">
+            <h3 class="text-2xl font-semibold mb-6 flex items-center">
+                <i class="fas fa-chart-area mr-3 text-green-400"></i>Biểu Đồ Giá Cổ Phiếu
+            </h3>
+            <div id="chart" style="height: 500px;"></div>
+        </div>
+
+        <!-- Predictions Section -->
+        <div id="predictionsSection" class="glass-effect rounded-2xl p-8 hidden fade-in">
+            <h3 class="text-2xl font-semibold mb-6 flex items-center">
+                <i class="fas fa-crystal-ball mr-3 text-purple-400"></i>Kết Quả Dự Báo
+            </h3>
+            <div id="predictionsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-80 overflow-y-auto">
+                <!-- Predictions will be populated here -->
+            </div>
+        </div>
+
+        <!-- Model Performance -->
+        <div id="performanceSection" class="glass-effect rounded-2xl p-8 hidden fade-in">
+            <h3 class="text-2xl font-semibold mb-6 flex items-center">
+                <i class="fas fa-trophy mr-3 text-orange-400"></i>Hiệu Suất Mô Hình
+            </h3>
+            <div id="performanceGrid" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Performance metrics will be populated here -->
+            </div>
+        </div>
+    </div>
+    <div id="hoverTimeDisplay" class="hover-time-display"></div>
+    <div id="hoverValueDisplay" class="hover-value-display"></div>
+
+    <!-- Loading Modal -->
+    <div id="loadingModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="glass-effect rounded-2xl p-8 text-center">
+            <div class="loading-spinner mx-auto mb-4"></div>
+            <p class="text-lg">Đang xử lý dữ liệu...</p>
+        </div>
+    </div>
+
+    <script>
+        class StockPredictor {
+            constructor() {
+                this.initializeEventListeners();
+                this.uploadedData = null;
+                this.statusTimeout = null; // Thêm biến để lưu timeout
+            }
+            initializeEventListeners() {
+                document.getElementById('uploadBtn').addEventListener('click', () => this.uploadFile());
+                document.getElementById('predictBtn').addEventListener('click', () => this.makePrediction());
+            }
+            showLoading() {
+                document.getElementById('loadingModal').classList.remove('hidden');
+            }
+            hideLoading() {
+                document.getElementById('loadingModal').classList.add('hidden');
+            }
+            clearStatusTimeout() {
+                if (this.statusTimeout) {
+                    clearTimeout(this.statusTimeout);
+                    this.statusTimeout = null;
+                }
+            }
+
+            hideStatusAfterDelay(delay = 3000) {
+                this.clearStatusTimeout();
+                this.statusTimeout = setTimeout(() => {
+                    const statusDiv = document.getElementById('uploadStatus');
+                    statusDiv.classList.add('fade-out');
+
+                    // Sau khi animation fade-out kết thúc thì ẩn hoàn toàn
+                    setTimeout(() => {
+                        statusDiv.classList.add('hidden');
+                        statusDiv.classList.remove('fade-out');
+                    }, 500); // 500ms = thời gian của animation fadeOut
+                }, delay);
+            }
+
+            showError(message) {
+                this.clearStatusTimeout(); // Clear timeout cũ nếu có
+                const statusDiv = document.getElementById('uploadStatus');
+                statusDiv.innerHTML = `
+                    <div class="bg-red-500/20 border border-red-500/50 rounded-lg p-4 flex items-center">
+                        <i class="fas fa-exclamation-triangle text-red-400 mr-3"></i>
+                        <span class="text-red-300">${message}</span>
+                    </div>
+                `;
+                statusDiv.classList.remove('hidden', 'fade-out');
+                // Lỗi thì hiển thị lâu hơn (5 giây)
+                this.hideStatusAfterDelay(5000);
+            }
+
+            showSuccess(message) {
+                this.clearStatusTimeout(); // Clear timeout cũ nếu có
+                const statusDiv = document.getElementById('uploadStatus');
+                statusDiv.innerHTML = `
+                    <div class="bg-green-500/20 border border-green-500/50 rounded-lg p-4 flex items-center">
+                        <i class="fas fa-check-circle text-green-400 mr-3"></i>
+                        <span class="text-green-300">${message}</span>
+                    </div>
+                `;
+                statusDiv.classList.remove('hidden', 'fade-out');
+                // Thông báo thành công sẽ tự ẩn sau 3 giây
+                this.hideStatusAfterDelay(3000);
+            }
+
+            async uploadFile() {
+                const fileInput = document.getElementById('fileInput');
+                const file = fileInput.files[0];
+                if (!file) {
+                    this.showError('Vui lòng chọn file CSV');
+                    return;
+                }
+                if (!file.name.toLowerCase().endsWith('.csv')) {
+                    this.showError('Chỉ chấp nhận file CSV');
+                    return;
+                }
+                this.showLoading();
+
+                const formData = new FormData();
+                formData.append('file', file);
+                try {
+                    const response = await fetch('/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.uploadedData = data;
+                        this.showSuccess(data.message);
+                        this.displayStats(data.stats);
+                        this.displayChart(data.chart);
+                        this.displayPerformance(data.training_results);
+                        this.showControls();
+                    } else {
+                        this.showError(data.error);
+                    }
+                } catch (error) {
+                    this.showError('Lỗi kết nối server');
+                } finally {
+                    this.hideLoading();
+                }
+            }
+            showControls() {
+                document.getElementById('controlsSection').classList.remove('hidden');
+            }
+
+            displayStats(stats) {
+                const statsGrid = document.getElementById('statsGrid');
+                statsGrid.innerHTML = `
+                    <div class="text-center p-4 bg-blue-500/20 rounded-lg hover-scale">
+                        <div class="text-3xl font-bold text-blue-400 mb-2">$${stats.current_price.toFixed(2)}</div>
+                        <div class="text-sm text-gray-300">Giá Hiện Tại</div>
+                    </div>
+                    <div class="text-center p-4 bg-yellow-500/20 rounded-lg hover-scale">
+                        <div class="text-3xl font-bold text-yellow-400 mb-2">$${stats.avg_price.toFixed(2)}</div>
+                        <div class="text-sm text-gray-300">Giá Trung Bình</div>
+                    </div>
+                    <div class="text-center p-4 bg-green-500/20 rounded-lg hover-scale">
+                        <div class="text-3xl font-bold text-green-400 mb-2">$${stats.max_price.toFixed(2)}</div>
+                        <div class="text-sm text-gray-300">Giá Cao Nhất</div>
+                    </div>
+                    <div class="text-center p-4 bg-red-500/20 rounded-lg hover-scale">
+                        <div class="text-3xl font-bold text-red-400 mb-2">$${stats.min_price.toFixed(2)}</div>
+                        <div class="text-sm text-gray-300">Giá Thấp Nhất</div>
+                    </div>
+                    <div class="text-center p-4 bg-purple-500/20 rounded-lg hover-scale">
+                        <div class="text-3xl font-bold text-purple-400 mb-2">${stats.total_days}</div>
+                        <div class="text-sm text-gray-300">Tổng Số Ngày</div>
+                    </div>
+                    <div class="text-center p-4 bg-indigo-500/20 rounded-lg hover-scale">
+                        <div class="text-3xl font-bold ${stats.price_change_percent >= 0 ? 'text-green-400' : 'text-red-400'} mb-2">
+                            ${stats.price_change_percent.toFixed(2)}%
+                        </div>
+                        <div class="text-sm text-gray-300">Thay Đổi (%)</div>
+                    </div>
+                    <div class="text-center p-4 bg-teal-500/20 rounded-lg hover-scale">
+                        <div class="text-3xl font-bold text-teal-400 mb-2">${(stats.avg_volume / 1000000).toFixed(1)}M</div>
+                        <div class="text-sm text-gray-300">Volume TB</div>
+                    </div>
+                    <div class="text-center p-4 bg-pink-500/20 rounded-lg hover-scale">
+                        <div class="text-3xl font-bold ${stats.price_change >= 0 ? 'text-green-400' : 'text-red-400'} mb-2">
+                            ${Math.abs(stats.price_change).toFixed(2)}
+                        </div>
+                        <div class="text-sm text-gray-300">Thay Đổi Giá</div>
+                    </div>
+                `;
+                document.getElementById('statsSection').classList.remove('hidden');
+            }
+
+            displayChart(chartData) {
+                if (chartData) {
+                    const chart = JSON.parse(chartData);
+                    const plotDiv = document.getElementById('chart');
+
+                    Plotly.newPlot(plotDiv, chart.data, chart.layout, {responsive: true});
+                    document.getElementById('chartSection').classList.remove('hidden');
+
+                    // Thêm sự kiện hover
+                    plotDiv.on('plotly_hover', function(data) {
+                        const hoverTimeDisplay = document.getElementById('hoverTimeDisplay');
+                        const hoverValueDisplay = document.getElementById('hoverValueDisplay');
+
+                        if (data.points && data.points.length > 0) {
+                            const point = data.points[0];
+                            const date = new Date(point.x);
+                            const formattedDate = date.toLocaleDateString('vi-VN', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric'
+                            });
+
+                            // Hiển thị thời gian
+                            hoverTimeDisplay.textContent = formattedDate;
+                            hoverTimeDisplay.style.opacity = '1';
+
+                            // Hiển thị giá trị và tên đường
+                            const valueName = point.data.name || 'Giá';
+                            hoverValueDisplay.textContent = `${valueName}: ${point.y.toFixed(2)}`;
+                            hoverValueDisplay.style.opacity = '1';
+                        }
+                    });
+
+                    plotDiv.on('plotly_unhover', function() {
+                        document.getElementById('hoverTimeDisplay').style.opacity = '0';
+                        document.getElementById('hoverValueDisplay').style.opacity = '0';
+                    });
+                }
+            }
+
+            displayPerformance(results) {
+                const performanceGrid = document.getElementById('performanceGrid');
+                let html = '';
+                for (const [modelName, metrics] of Object.entries(results)) {
+                    const displayName = modelName === 'random_forest' ? 'Random Forest' : 'Linear Regression';
+                    html += `
+                        <div class="bg-gray-800/50 rounded-lg p-6">
+                            <h4 class="text-lg font-semibold mb-4 text-center">${displayName}</h4>
+                            <div class="space-y-3">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-300">RMSE:</span>
+                                    <span class="text-blue-400 font-semibold">${metrics.rmse.toFixed(4)}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-300">MAE:</span>
+                                    <span class="text-green-400 font-semibold">${metrics.mae.toFixed(4)}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-300">MSE:</span>
+                                    <span class="text-purple-400 font-semibold">${metrics.mse.toFixed(4)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                performanceGrid.innerHTML = html;
+                document.getElementById('performanceSection').classList.remove('hidden');
+            }
+            async makePrediction() {
+                if (!this.uploadedData) {
+                    this.showError('Vui lòng tải lên dữ liệu trước');
+                    return;
+                }
+                this.showLoading();
+
+                const model = document.getElementById('modelSelect').value;
+                const days = parseInt(document.getElementById('daysInput').value);
+                try {
+                    const response = await fetch('/predict', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            model: model,
+                            days: days
+                        })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.displayPredictions(data.predictions);
+                        this.displayChart(data.chart);
+                    } else {
+                        this.showError(data.error);
+                    }
+                } catch (error) {
+                    this.showError('Lỗi kết nối server');
+                } finally {
+                    this.hideLoading();
+                }
+            }
+
+            displayPredictions(predictions) {
+                const predictionsGrid = document.getElementById('predictionsGrid');
+                let html = '';
+                predictions.slice(0, 15).forEach((pred, index) => {
+                    const date = new Date(pred.date);
+                    const formattedDate = date.toLocaleDateString('vi-VN');
+                    const dayName = date.toLocaleDateString('vi-VN', { weekday: 'short' });
+                    html += `
+                        <div class="bg-gray-800/50 rounded-lg p-4 hover-scale border-l-4 border-blue-500">
+                            <div class="text-sm text-gray-400 mb-1">${dayName}</div>
+                            <div class="text-sm text-gray-300 mb-2">${formattedDate}</div>
+                            <div class="text-xl font-bold text-green-400">
+                                ${pred.predicted_price.toFixed(2)}
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1">Ngày ${index + 1}</div>
+                        </div>
+                    `;
+                });
+                predictionsGrid.innerHTML = html;
+                document.getElementById('predictionsSection').classList.remove('hidden');
+            }
+        }
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', () => {
+            new StockPredictor();
+        });
+
+        // Add some animations
+        window.addEventListener('scroll', () => {
+            const sections = document.querySelectorAll('.fade-in');
+            sections.forEach(section => {
+                const rect = section.getBoundingClientRect();
+                if (rect.top < window.innerHeight * 0.75) {
+                    section.style.opacity = '1';
+                    section.style.transform = 'translateY(0)';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
